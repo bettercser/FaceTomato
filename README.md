@@ -343,7 +343,7 @@ FaceTomato/
 - 提交 Pull Request 改进功能
 - 提出产品体验与交互建议
 
-如果后续补充 `CONTRIBUTING.md`，可以在这里加入对应链接。
+详细贡献流程、TDD 要求、提交规范与 PR 说明请见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## ⚠️ 免责声明
 
