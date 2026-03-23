@@ -2,6 +2,8 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        BACKEND_INSTALL_RAG: "${BACKEND_INSTALL_RAG:-false}"
     container_name: face-tomato-backend
     env_file:
       - ./backend/.env

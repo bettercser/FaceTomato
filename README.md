@@ -301,8 +301,29 @@ cp backend/.env.example backend/.env
 docker compose up --build -d 
 ```
 
-当前仓库自带的 Docker backend 镜像按默认依赖构建，不包含 `rag` 可选依赖；因此 Docker 路径默认适用于 non-RAG 模式。
-如果你要在容器里启用本地 RAG，需要额外调整 backend 镜像安装步骤，使其安装 `.[rag]` 或等价的 `uv sync --extra rag`。
+默认 Docker 路径会按 `BACKEND_INSTALL_RAG=false` 构建 backend 镜像，因此只安装默认依赖，适用于 non-RAG 模式：
+
+```bash
+docker compose up --build -d
+```
+
+如果你要构建 **RAG-capable** 的 backend 镜像，需要在构建阶段显式提供安装层开关：
+
+```bash
+BACKEND_INSTALL_RAG=true docker compose up --build -d
+```
+
+然后再在 `backend/.env` 中开启运行时开关：
+
+```env
+MOCK_INTERVIEW_RAG=true
+```
+
+请注意这两层缺一不可：
+
+- `BACKEND_INSTALL_RAG=true`：只表示镜像内安装了 `rag` 可选依赖
+- `MOCK_INTERVIEW_RAG=true`：只表示运行时尝试启用 mock interview RAG
+- 即使 runtime=true，若镜像未安装 rag、索引缺失或相关依赖不可用，后端仍会自动回退到 non-RAG
 
 启动后默认访问地址：
 

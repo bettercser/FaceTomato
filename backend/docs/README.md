@@ -38,7 +38,13 @@ uv sync --extra rag
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 6522
 ```
 
-> 补充：仓库当前 `backend/Dockerfile` 仍按默认依赖构建镜像，因此 `docker compose` 路径默认只覆盖 non-RAG 模式；若要在容器内启用 RAG，需要额外修改镜像安装步骤。
+Docker 路径同样区分安装层与运行时层：
+
+- 默认 non-RAG 镜像：`docker compose up --build -d`
+- 构建带 RAG 依赖的镜像：`BACKEND_INSTALL_RAG=true docker compose up --build -d`
+- 运行时真正尝试启用 mock interview RAG：在 `backend/.env` 中再设置 `MOCK_INTERVIEW_RAG=true`
+
+> `backend/.env` 只影响容器启动后的运行时行为，不会反向控制镜像构建；即使 `MOCK_INTERVIEW_RAG=true`，若镜像未以 `BACKEND_INSTALL_RAG=true` 构建，或索引 / 依赖不可用，服务仍会自动回退到 non-RAG。
 
 接口文档：`http://127.0.0.1:6522/docs`
 

@@ -28,6 +28,16 @@ cd backend
 uv sync --extra rag
 ```
 
+如果你走 Docker 路径，安装层对应的是镜像构建参数：
+
+```bash
+# 默认 backend 镜像：不安装 rag 可选依赖
+docker compose up --build -d
+
+# 构建带 rag 可选依赖的 backend 镜像
+BACKEND_INSTALL_RAG=true docker compose up --build -d
+```
+
 ---
 
 ## 先记住这 6 条规则
@@ -276,13 +286,13 @@ GOOGLE_MODEL=gemini-2.0-flash
 
 先区分两个层面：
 
-1. **安装层**：是否执行了 `uv sync --extra rag`
+1. **安装层**：本地是否执行了 `uv sync --extra rag`，或 Docker 构建时是否提供 `BACKEND_INSTALL_RAG=true`
 2. **运行时层**：是否设置 `MOCK_INTERVIEW_RAG=true`
 
 这两层不是一回事：
 
 - `MOCK_INTERVIEW_RAG=false` = 你主动在运行时关闭 RAG
-- 没有安装 `rag` 可选依赖 = 运行环境根本不具备本地 RAG 能力
+- 没有安装 `rag` 可选依赖 / Docker 镜像未以 `BACKEND_INSTALL_RAG=true` 构建 = 运行环境根本不具备本地 RAG 能力
 
 对于轻量部署，建议先关闭：
 
@@ -300,8 +310,9 @@ MOCK_INTERVIEW_RAG=false
 
 **建议：**
 - 只想快速跑起来：`MOCK_INTERVIEW_RAG=false`
-- 需要更强的 mock interview 检索增强时，再执行 `uv sync --extra rag`、构建本地索引，并开启 `MOCK_INTERVIEW_RAG=true`
-- 即使你写了 `MOCK_INTERVIEW_RAG=true`，如果当前依赖不可用，后端也会自动回退到 non-RAG
+- 本地开发要启用更强的 mock interview 检索增强时，再执行 `uv sync --extra rag`、构建本地索引，并开启 `MOCK_INTERVIEW_RAG=true`
+- Docker 部署要启用时，先用 `BACKEND_INSTALL_RAG=true docker compose up --build -d` 构建带 RAG 依赖的镜像，再在 `backend/.env` 里设置 `MOCK_INTERVIEW_RAG=true`
+- 即使你写了 `MOCK_INTERVIEW_RAG=true`，如果当前依赖不可用，或 Docker 镜像未安装 rag，后端也会自动回退到 non-RAG
 
 ---
 

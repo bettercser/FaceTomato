@@ -2,7 +2,7 @@
 
 本文档说明 `backend/` 下 mock interview / 面经检索使用的本地 RAG embedding 配置。
 
-> 前提：本页的能力都属于 backend 的 **`rag` 可选依赖**。默认 `uv sync` 不会安装这些依赖；启用前请先执行 `uv sync --extra rag`。当前依赖组合中的 `zvec` 仍限制为非 Windows 平台，因此 Windows 默认只能使用 non-RAG / 回退路径。
+> 前提：本页的能力都属于 backend 的 **`rag` 可选依赖**。默认 `uv sync` / 默认 Docker 构建都不会安装这些依赖；本地启用前请先执行 `uv sync --extra rag`，Docker 启用前请在 `docker compose build/up --build` 时提供 `BACKEND_INSTALL_RAG=true`。当前依赖组合中的 `zvec` 仍限制为非 Windows 平台，因此 Windows 默认只能使用 non-RAG / 回退路径。
 
 ---
 
@@ -26,26 +26,35 @@ INTERVIEW_SPARSE_EMBEDDING_PROVIDER=bm25
 
 先区分两个概念：
 
-- **安装层**：`uv sync --extra rag` 是否执行过
+- **安装层**：本地是否执行过 `uv sync --extra rag`，或 Docker 构建时是否提供 `BACKEND_INSTALL_RAG=true`
 - **运行时层**：`MOCK_INTERVIEW_RAG` 是否开启
 
 这两者缺一不可：
 
-- 没有安装 `rag` 可选依赖：RAG builder、RAG service、索引脚本都会显式报错或自动回退
+- 没有安装 `rag` 可选依赖 / Docker 镜像未以 `BACKEND_INSTALL_RAG=true` 构建：RAG builder、RAG service、索引脚本都会显式报错或自动回退
 - 安装了 `rag` 可选依赖但 `MOCK_INTERVIEW_RAG=false`：运行时仍然走 non-RAG
 
 ### `MOCK_INTERVIEW_RAG`
 
 是否开启 mock interview 的 RAG 检索。
 
-- `true`：开启 RAG
+- `true`：运行时尝试开启 RAG
 - `false`：关闭 ZVEC-based RAG，mock interview 改走 SQLite non-RAG fallback 检索
 
 ```env
 MOCK_INTERVIEW_RAG=true
 ```
 
-如果只改这个开关、但没有安装 `uv sync --extra rag`，mock interview 会把 `ragEnabled` 标成 `false`，并自动退回 SQLite non-RAG 检索。
+### Docker 构建示例
+
+```bash
+docker compose up --build -d
+BACKEND_INSTALL_RAG=true docker compose up --build -d
+```
+
+其中第一条是默认 non-RAG 镜像路径，第二条才会让 backend 镜像安装 `rag` 可选依赖。
+
+如果只改这个开关、但没有安装 `uv sync --extra rag`，或 Docker 镜像未以 `BACKEND_INSTALL_RAG=true` 构建，mock interview 会把 `ragEnabled` 标成 `false`，并自动退回 SQLite non-RAG 检索。
 
 ---
 
@@ -292,7 +301,7 @@ uv run python scripts/build_interview_zvec_index.py
 
 ### Q2. 为什么我已经把 `MOCK_INTERVIEW_RAG=true`，却还是看到 non-RAG？
 
-因为运行时开关不等于安装层能力。若未执行 `uv sync --extra rag`，或当前 provider 依赖的 `zvec` / `sentence-transformers` / `modelscope` 不可用，服务会自动回退，并让 `developerContext.ragEnabled=false`。
+因为运行时开关不等于安装层能力。若未执行 `uv sync --extra rag`、Docker 镜像未以 `BACKEND_INSTALL_RAG=true` 构建，或当前 provider 依赖的 `zvec` / `sentence-transformers` / `modelscope` 不可用，服务会自动回退，并让 `developerContext.ragEnabled=false`。
 
 ### Q3. 本地 provider 第一次很慢，正常吗？
 
