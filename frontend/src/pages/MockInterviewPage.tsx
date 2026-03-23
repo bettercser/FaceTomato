@@ -296,7 +296,7 @@ const MockInterviewPage = () => {
       const resolvedPlan = overrides.interviewPlan ?? sourceState.interviewPlan;
       const resolvedState = overrides.interviewState ?? sourceState.interviewState;
       const resolvedResumeSnapshot = overrides.resumeSnapshot ?? parsedResume;
-      const resolvedJdData = Object.prototype.hasOwnProperty.call(overrides, "jdData") ? overrides.jdData : jdData ?? null;
+      const resolvedJdData = Object.prototype.hasOwnProperty.call(overrides, "jdData") ? (overrides.jdData ?? null) : jdData ?? null;
       if (!resolvedResumeSnapshot || !interviewType || !category || !resolvedPlan || !resolvedState) {
         return null;
       }
