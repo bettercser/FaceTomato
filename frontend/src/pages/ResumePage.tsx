@@ -188,7 +188,7 @@ const ResumePage = () => {
             canvas: null,
             canvasContext: context,
             viewport: renderViewport,
-          });
+          } as Parameters<typeof page.render>[0]);
           await renderTask.promise;
         }
       })
