@@ -181,7 +181,6 @@ export interface RuntimeAwarePayload {
 }
 
 export interface MockInterviewSessionSnapshot {
-  snapshotVersion: 3;
   sessionId: string;
   interviewType: InterviewType;
   category: Category;
