@@ -3,6 +3,7 @@ import { AnimatePresence, motion as m } from "framer-motion";
 import {
   BookOpen,
   ChevronDown,
+  ClipboardList,
   FileText,
   GitCompare,
   Menu,
@@ -44,6 +45,7 @@ const ResumePage = lazy(() => import("./pages/ResumePage"));
 const DiagnosisPage = lazy(() => import("./pages/DiagnosisPage"));
 const QuestionBankPage = lazy(() => import("./pages/QuestionBankPage"));
 const MockInterviewPage = lazy(() => import("./pages/MockInterviewPage"));
+const InterviewReviewPage = lazy(() => import("./pages/InterviewReviewPage"));
 
 type NavItem = {
   path: string;
@@ -88,6 +90,7 @@ const navItems: NavItem[] = [
   { path: "/diagnosis", label: "简历优化", icon: GitCompare },
   { path: "/questions", label: "面经题库", icon: BookOpen },
   { path: "/interview", label: "模拟面试", icon: Mic },
+  { path: "/interview-review", label: "面试报告", icon: ClipboardList },
 ];
 
 const hasConfiguredValue = (value?: string | null) => Boolean(value?.trim());
@@ -913,6 +916,7 @@ const App = () => {
 
           <main className="main-content flex-1 overflow-y-auto scrollbar-hide p-4 md:p-6">
             <div className="mx-auto h-full max-w-7xl">
+<<<<<<< HEAD
               <Suspense fallback={<div className="py-8 text-sm text-muted-foreground">页面加载中...</div>}>
                 <Routes>
                   <Route path="/" element={<ResumePage />} />
@@ -922,6 +926,16 @@ const App = () => {
                   <Route path="/interview" element={<MockInterviewPage />} />
                 </Routes>
               </Suspense>
+=======
+              <Routes>
+                <Route path="/" element={<ResumePage />} />
+                <Route path="/resume" element={<ResumePage />} />
+                <Route path="/diagnosis" element={<DiagnosisPage />} />
+                <Route path="/questions" element={<QuestionBankPage />} />
+                <Route path="/interview" element={<MockInterviewPage />} />
+                <Route path="/interview-review" element={<InterviewReviewPage />} />
+              </Routes>
+>>>>>>> 9505633 (wip: save local interview review changes)
             </div>
           </main>
         </div>
