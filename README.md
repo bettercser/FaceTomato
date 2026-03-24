@@ -1,8 +1,6 @@
-# FaceTomato
+# FaceTomato · AI 辅助简历分析与模拟面试系统
 
 <div align="center">
-
-### FaceTomato · AI 辅助简历分析与模拟面试系统
 
 <img src="./assets/facetomato_new.jpg" alt="FaceTomato preview" width="880" />
 
@@ -41,7 +39,7 @@ uv sync
 cp .env.example .env
 ```
 
-如果你要显式启用本地 RAG 检索或构建索引，再额外安装 `rag` 可选依赖：
+如果你要显式启用本地 RAG 检索或构建索引，再额外安装 `rag` 可选依赖（当前本地依赖组合面向非 Windows 平台；Windows 用户建议使用 Docker / Linux 环境，或继续使用 non-RAG fallback）：
 
 ```bash
 cd backend
@@ -216,7 +214,7 @@ backend/data/interviews.db
 
 ## 🗂️ 面经索引构建
 
-建立面经索引前，先安装 `rag` 可选依赖：
+建立面经索引前，先安装 `rag` 可选依赖（当前本地依赖组合面向非 Windows 平台）：
 
 ```bash
 cd backend
