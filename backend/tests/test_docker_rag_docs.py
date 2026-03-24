@@ -36,7 +36,7 @@ def test_docker_compose_forwards_backend_install_rag_build_arg():
 
 
 def test_readmes_document_default_and_rag_capable_docker_paths():
-    for relative_path in ("README.md", "backend/docs/README.md"):
+    for relative_path in ("README.md", "docs/backend/README.md"):
         content = _read(relative_path)
 
         assert "docker compose up --build -d" in content
@@ -47,8 +47,8 @@ def test_readmes_document_default_and_rag_capable_docker_paths():
 def test_rag_docs_and_env_example_explain_build_time_vs_runtime_switches():
     documented_files = (
         "backend/.env.example",
-        "backend/docs/configuration.md",
-        "backend/docs/rag-config.md",
+        "docs/backend/configuration.md",
+        "docs/backend/rag-config.md",
     )
 
     for relative_path in documented_files:
@@ -59,3 +59,12 @@ def test_rag_docs_and_env_example_explain_build_time_vs_runtime_switches():
 
     env_example = _read("backend/.env.example")
     assert "backend/.env" in env_example
+
+
+def test_interview_data_doc_covers_database_prep_and_optional_index_build():
+    content = _read("docs/interview-data.md")
+
+    assert "scripts/migrate_db.py" in content
+    assert "build_interview_zvec_index.py" in content
+    assert "backend/data/interviews.db" in content
+    assert "docs/backend/rag-config.md" in content
