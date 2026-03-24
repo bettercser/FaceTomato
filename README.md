@@ -131,7 +131,9 @@ MOCK_INTERVIEW_RAG=true
 
 仓库默认**不会**提交面经题库数据，`backend/data/` 也被 `.gitignore` 忽略。
 
-如果你希望在 FaceTomato 中看到真实的面经题库内容，**必须自行提供** `backend/data/interviews.db`；否则依赖数据库的题库浏览、搜索、详情与邻近导航等能力将无法正常使用。
+如果你希望在 FaceTomato 中看到真实的面经题库内容，可以优先从仓库 **Releases** 页面下载已准备好的数据库附件；如果下载的是压缩包，请先解压，再将其中的 `interviews.db` 放到 `backend/data/interviews.db`。你也可以自行准备原始数据并运行迁移脚本生成数据库。
+
+如果未提供 `interviews.db`，依赖数据库的题库浏览、搜索、详情与邻近导航等能力将无法正常使用。
 
 ### 1. `backend/data/` 目录里有什么
 
@@ -140,9 +142,17 @@ MOCK_INTERVIEW_RAG=true
 
 其中，**`backend/data/interviews.db` 是查看面经题库的前置条件**。
 
-### 2. 原始数据应该如何准备
+### 2. 如何获取 `interviews.db`
 
-如果你还没有 `interviews.db`，可以先准备原始 JSON 数据，再通过迁移脚本生成数据库。
+你可以通过以下常见方式准备数据库：
+
+- 从仓库 **Releases** 页面下载已发布的数据库附件；如果下载的是压缩包，请先解压，再将 `interviews.db` 放到 `backend/data/interviews.db`
+- 自行准备原始 JSON 数据，并通过迁移脚本生成数据库
+- 如果你已经有现成的 SQLite 数据库，也可以直接放到 `backend/data/interviews.db`
+
+### 3. 原始数据应该如何准备
+
+如果你选择自行生成 `interviews.db`，可以先准备原始 JSON 数据，再通过迁移脚本生成数据库。
 
 迁移脚本当前会识别以下 **7 个领域目录名**：
 
@@ -175,7 +185,7 @@ MOCK_INTERVIEW_RAG=true
 }
 ```
 
-### 3. 如何生成 `interviews.db`
+### 4. 如何生成 `interviews.db`
 
 在准备好原始 JSON 数据后，使用仓库内脚本生成 SQLite 数据库：
 
@@ -190,7 +200,7 @@ uv run python scripts/migrate_db.py --source-dir /path/to/interview_experiences
 backend/data/interviews.db
 ```
 
-### 4. 可选：继续构建本地检索索引
+### 5. 可选：继续构建本地检索索引
 
 当 `backend/data/interviews.db` 准备完成后，如需启用本地 RAG 检索，再继续构建 `backend/data/interview_zvec/`。
 
