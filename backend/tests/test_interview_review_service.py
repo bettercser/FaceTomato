@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from app.prompts.interview_review_prompts import get_interview_review_prompts
@@ -14,6 +16,9 @@ from app.services.interview_review_service import (
     InterviewReviewNotEligibleError,
     InterviewReviewService,
 )
+
+
+LOGGER_NAME = "app.services.interview_review_service"
 
 
 class StubAgent:
@@ -60,6 +65,22 @@ class FakeChatModel:
 class FakeOptimizerAgent:
     def __init__(self, result):
         self.chat_model = FakeChatModel(result)
+        self.prompts = get_interview_review_prompts()
+
+
+class FailingStructuredLLM:
+    def invoke(self, _messages):
+        raise RuntimeError("optimizer failure")
+
+
+class FailingOptimizerChatModel:
+    def with_structured_output(self, _schema):
+        return FailingStructuredLLM()
+
+
+class FailingOptimizerAgent:
+    def __init__(self):
+        self.chat_model = FailingOptimizerChatModel()
         self.prompts = get_interview_review_prompts()
 
 
@@ -395,9 +416,8 @@ def test_build_review_detail_aligns_focus_and_answer_points_without_truncating_f
     assert "…" not in topic.coreQuestion
 
 
-def test_optimize_topic_uses_runtime_llm_result(monkeypatch):
-    snapshot = build_snapshot()
-    report = InterviewEvaluationReport.model_validate(
+def _build_runtime_optimization_report() -> InterviewEvaluationReport:
+    return InterviewEvaluationReport.model_validate(
         {
             "summary": "summary",
             "overallScore": 80,
@@ -431,6 +451,11 @@ def test_optimize_topic_uses_runtime_llm_result(monkeypatch):
             ],
         }
     )
+
+
+def test_optimize_topic_uses_runtime_llm_result(monkeypatch):
+    snapshot = build_snapshot()
+    report = _build_runtime_optimization_report()
     service = InterviewReviewService(mock_interview_service=object(), evaluation_agent=StubAgent(report))
     service.generate_review("session-1", snapshot=snapshot)
 
@@ -472,3 +497,77 @@ def test_optimize_topic_uses_runtime_llm_result(monkeypatch):
     assert response.optimizedAnswer == runtime_result.optimizedAnswer
     assert response.suggestions == runtime_result.suggestions
     assert response.message.suggestions == runtime_result.suggestions
+
+
+def test_generate_review_logs_stages_without_sensitive_content(caplog):
+    snapshot = build_snapshot()
+    report = build_report()
+    service = InterviewReviewService(mock_interview_service=object(), evaluation_agent=StubAgent(report))
+
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        result = service.generate_review("session-1", snapshot=snapshot)
+
+    assert result is not None
+    records = [record for record in caplog.records if record.name == LOGGER_NAME]
+    assert any(record.message == "interview review generation started" for record in records)
+    assert any(record.message == "interview review generation resolved snapshot" for record in records)
+    assert any(record.message == "interview review generation built agent input" for record in records)
+    assert any(record.message == "interview review generation resolved evaluation agent" for record in records)
+    assert any(record.message == "interview review generation completed evaluation" for record in records)
+    assert any(record.message == "interview review generation built review detail" for record in records)
+    stored_record = next(record for record in records if record.message == "interview review generation stored review")
+    assert getattr(stored_record, "session_id") == "session-1"
+    assert getattr(stored_record, "report_status") == "ready"
+    assert getattr(stored_record, "elapsed_ms") >= 0
+    log_text = caplog.text
+    assert "runtime-key" not in log_text
+    assert "负责大模型算法研究" not in log_text
+    assert "我做过大模型训练项目" not in log_text
+    assert "test@example.com" not in log_text
+
+
+def test_optimize_topic_logs_fallback_without_leaking_message(monkeypatch, caplog):
+    snapshot = build_snapshot()
+    report = _build_runtime_optimization_report()
+    service = InterviewReviewService(mock_interview_service=object(), evaluation_agent=StubAgent(report))
+    service.generate_review("session-1", snapshot=snapshot)
+
+    def fake_from_runtime_config(_runtime_config):
+        return FailingOptimizerAgent()
+
+    monkeypatch.setattr(
+        "app.services.interview_review_service.InterviewEvaluationAgent.from_runtime_config",
+        fake_from_runtime_config,
+    )
+
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        response = service.optimize_topic(
+            ReviewOptimizationRequest.model_validate(
+                {
+                    "sessionId": "session-1",
+                    "topicId": "topic-session-1-1",
+                    "message": "这里有我的原始回答内容",
+                    "conversation": [],
+                    "runtimeConfig": {
+                        "apiKey": "runtime-key",
+                        "baseURL": "https://example.com/v1",
+                        "model": "runtime-model",
+                    },
+                }
+            )
+        )
+
+    assert response is not None
+    records = [record for record in caplog.records if record.name == LOGGER_NAME]
+    exception_record = next(
+        record
+        for record in records
+        if record.message == "interview review topic llm optimization failed, using fallback"
+    )
+    assert getattr(exception_record, "session_id") == "session-1"
+    assert getattr(exception_record, "topic_id") == "topic-session-1-1"
+    assert getattr(exception_record, "elapsed_ms") >= 0
+    assert response.reply
+    log_text = caplog.text
+    assert "runtime-key" not in log_text
+    assert "这里有我的原始回答内容" not in log_text

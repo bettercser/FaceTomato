@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -18,6 +20,9 @@ from app.services.interview_review_service import (
     InterviewReviewNotEligibleError,
     get_interview_review_service,
 )
+
+
+LOGGER_NAME = "app.api.routes.interview_reviews"
 
 
 class StubInterviewReviewService:
@@ -158,81 +163,85 @@ def test_generate_interview_review_route_returns_409_when_session_not_reviewable
     assert response.json()["detail"] == "请先完成模拟面试后再生成复盘报告"
 
 
+def _build_route_snapshot_payload(session_id: str = "session-1") -> dict:
+    return {
+        "snapshotVersion": 3,
+        "sessionId": session_id,
+        "interviewType": "实习",
+        "category": "大模型算法",
+        "status": "completed",
+        "limits": {
+            "durationMinutes": 60,
+            "softInputChars": 1200,
+            "maxInputChars": 1500,
+            "contextWindowMessages": 8,
+            "sessionTtlMinutes": 90,
+        },
+        "jdText": "负责大模型算法研发",
+        "jdData": None,
+        "resumeSnapshot": {
+            "basicInfo": {
+                "name": "测试用户",
+                "personalEmail": "test@example.com",
+                "phoneNumber": "13800138000",
+                "age": "",
+                "born": "",
+                "gender": "",
+                "desiredPosition": "算法实习生",
+                "desiredLocation": [],
+                "currentLocation": "",
+                "placeOfOrigin": "",
+                "rewards": [],
+            },
+            "workExperience": [],
+            "education": [],
+            "projects": [],
+            "academicAchievements": [],
+        },
+        "retrieval": {
+            "queryText": "",
+            "appliedFilters": {
+                "category": None,
+                "interviewType": None,
+                "company": None,
+            },
+            "items": [],
+        },
+        "interviewPlan": {
+            "plan": [
+                {"round": 1, "topic": "开场介绍", "description": "自我介绍"},
+                {"round": 2, "topic": "项目经历", "description": "介绍项目"},
+                {"round": 3, "topic": "LeetCode 编码", "description": "编码题"},
+            ],
+            "total_rounds": 3,
+            "estimated_duration": "30 分钟",
+            "leetcode_problem": "两数之和",
+        },
+        "interviewState": {
+            "currentRound": 3,
+            "questionsPerRound": {"1": 1, "2": 1, "3": 1},
+            "assistantQuestionCount": 3,
+            "turnCount": 3,
+            "reflectionHistory": [],
+            "closed": True,
+        },
+        "messages": [
+            {"id": "assistant-1", "role": "assistant", "content": "请先自我介绍"},
+            {"id": "user-1", "role": "user", "content": "我做过大模型训练项目"},
+        ],
+        "developerContext": None,
+        "developerTrace": [],
+        "resumeFingerprint": "fp-1",
+        "createdAt": "2026-03-19T10:00:00Z",
+        "lastActiveAt": "2026-03-19T10:10:00Z",
+        "expiresAt": "2026-03-20T10:00:00Z",
+    }
+
+
 def test_generate_interview_review_route_accepts_snapshot_body():
     response = client.post(
         "/api/interview-reviews/session-1/generate",
-        json={
-            "snapshotVersion": 3,
-            "sessionId": "session-1",
-            "interviewType": "实习",
-            "category": "大模型算法",
-            "status": "completed",
-            "limits": {
-                "durationMinutes": 60,
-                "softInputChars": 1200,
-                "maxInputChars": 1500,
-                "contextWindowMessages": 8,
-                "sessionTtlMinutes": 90,
-            },
-            "jdText": "负责大模型算法研发",
-            "jdData": None,
-            "resumeSnapshot": {
-                "basicInfo": {
-                    "name": "测试用户",
-                    "personalEmail": "test@example.com",
-                    "phoneNumber": "13800138000",
-                    "age": "",
-                    "born": "",
-                    "gender": "",
-                    "desiredPosition": "算法实习生",
-                    "desiredLocation": [],
-                    "currentLocation": "",
-                    "placeOfOrigin": "",
-                    "rewards": [],
-                },
-                "workExperience": [],
-                "education": [],
-                "projects": [],
-                "academicAchievements": [],
-            },
-            "retrieval": {
-                "queryText": "",
-                "appliedFilters": {
-                    "category": None,
-                    "interviewType": None,
-                    "company": None,
-                },
-                "items": [],
-            },
-            "interviewPlan": {
-                "plan": [
-                    {"round": 1, "topic": "开场介绍", "description": "自我介绍"},
-                    {"round": 2, "topic": "项目经历", "description": "介绍项目"},
-                    {"round": 3, "topic": "LeetCode 编码", "description": "编码题"},
-                ],
-                "total_rounds": 3,
-                "estimated_duration": "30 分钟",
-                "leetcode_problem": "两数之和",
-            },
-            "interviewState": {
-                "currentRound": 3,
-                "questionsPerRound": {"1": 1, "2": 1, "3": 1},
-                "assistantQuestionCount": 3,
-                "turnCount": 3,
-                "reflectionHistory": [],
-                "closed": True,
-            },
-            "messages": [
-                {"id": "assistant-1", "role": "assistant", "content": "请先自我介绍"},
-                {"id": "user-1", "role": "user", "content": "我做过大模型训练项目"},
-            ],
-            "developerContext": None,
-            "developerTrace": [],
-            "resumeFingerprint": "fp-1",
-            "createdAt": "2026-03-19T10:00:00Z",
-            "lastActiveAt": "2026-03-19T10:10:00Z",
-            "expiresAt": "2026-03-20T10:00:00Z",
-        },
+        json=_build_route_snapshot_payload(),
     )
 
     assert response.status_code == 200
@@ -242,80 +251,22 @@ def test_generate_interview_review_route_accepts_snapshot_body():
 
 
 def test_upload_interview_review_snapshot_route_accepts_standard_json():
+    payload = _build_route_snapshot_payload(session_id="uploaded-session-1")
+    payload["jdText"] = "负责大模型算法研究"
+    payload["resumeFingerprint"] = "fp-uploaded"
+    payload["interviewPlan"] = {
+        "plan": [
+            {"round": 1, "topic": "开场介绍", "description": "自我介绍"},
+            {"round": 2, "topic": "项目经历", "description": "介绍项目"},
+            {"round": 3, "topic": "算法题", "description": "编码考察"},
+        ],
+        "total_rounds": 3,
+        "estimated_duration": "20 分钟",
+        "leetcode_problem": "两数之和",
+    }
     response = client.post(
         "/api/interview-reviews/upload",
-        json={
-            "snapshotVersion": 3,
-            "sessionId": "uploaded-session-1",
-            "interviewType": "\u5b9e\u4e60",
-            "category": "\u5927\u6a21\u578b\u7b97\u6cd5",
-            "status": "completed",
-            "limits": {
-                "durationMinutes": 60,
-                "softInputChars": 1200,
-                "maxInputChars": 1500,
-                "contextWindowMessages": 8,
-                "sessionTtlMinutes": 90,
-            },
-            "jdText": "负责大模型算法研究",
-            "jdData": None,
-            "resumeSnapshot": {
-                "basicInfo": {
-                    "name": "测试用户",
-                    "personalEmail": "test@example.com",
-                    "phoneNumber": "13800138000",
-                    "age": "",
-                    "born": "",
-                    "gender": "",
-                    "desiredPosition": "算法实习生",
-                    "desiredLocation": [],
-                    "currentLocation": "",
-                    "placeOfOrigin": "",
-                    "rewards": [],
-                },
-                "workExperience": [],
-                "education": [],
-                "projects": [],
-                "academicAchievements": [],
-            },
-            "retrieval": {
-                "queryText": "",
-                "appliedFilters": {
-                    "category": None,
-                    "interviewType": None,
-                    "company": None,
-                },
-                "items": [],
-            },
-            "interviewPlan": {
-                "plan": [
-                    {"round": 1, "topic": "开场介绍", "description": "自我介绍"},
-                    {"round": 2, "topic": "项目经历", "description": "介绍项目"},
-                    {"round": 3, "topic": "算法题", "description": "编码考察"},
-                ],
-                "total_rounds": 3,
-                "estimated_duration": "20 分钟",
-                "leetcode_problem": "两数之和",
-            },
-            "interviewState": {
-                "currentRound": 3,
-                "questionsPerRound": {"1": 1, "2": 1, "3": 1},
-                "assistantQuestionCount": 3,
-                "turnCount": 3,
-                "reflectionHistory": [],
-                "closed": True,
-            },
-            "messages": [
-                {"id": "assistant-1", "role": "assistant", "content": "请先自我介绍"},
-                {"id": "user-1", "role": "user", "content": "我做过大模型训练项目"},
-            ],
-            "developerContext": None,
-            "developerTrace": [],
-            "resumeFingerprint": "fp-uploaded",
-            "createdAt": "2026-03-19T10:00:00Z",
-            "lastActiveAt": "2026-03-19T10:10:00Z",
-            "expiresAt": "2026-03-20T10:00:00Z",
-        },
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -327,80 +278,22 @@ def test_upload_interview_review_snapshot_route_accepts_standard_json():
 
 
 def test_upload_interview_review_snapshot_route_returns_409_for_unfinished_session():
+    payload = _build_route_snapshot_payload(session_id="session-conflict")
+    payload["jdText"] = "负责大模型算法研究"
+    payload["resumeFingerprint"] = "fp-uploaded"
+    payload["interviewPlan"] = {
+        "plan": [
+            {"round": 1, "topic": "开场介绍", "description": "自我介绍"},
+            {"round": 2, "topic": "项目经历", "description": "介绍项目"},
+            {"round": 3, "topic": "算法题", "description": "编码考察"},
+        ],
+        "total_rounds": 3,
+        "estimated_duration": "20 分钟",
+        "leetcode_problem": "两数之和",
+    }
     response = client.post(
         "/api/interview-reviews/upload",
-        json={
-            "snapshotVersion": 3,
-            "sessionId": "session-conflict",
-            "interviewType": "实习",
-            "category": "大模型算法",
-            "status": "completed",
-            "limits": {
-                "durationMinutes": 60,
-                "softInputChars": 1200,
-                "maxInputChars": 1500,
-                "contextWindowMessages": 8,
-                "sessionTtlMinutes": 90,
-            },
-            "jdText": "负责大模型算法研究",
-            "jdData": None,
-            "resumeSnapshot": {
-                "basicInfo": {
-                    "name": "测试用户",
-                    "personalEmail": "test@example.com",
-                    "phoneNumber": "13800138000",
-                    "age": "",
-                    "born": "",
-                    "gender": "",
-                    "desiredPosition": "算法实习生",
-                    "desiredLocation": [],
-                    "currentLocation": "",
-                    "placeOfOrigin": "",
-                    "rewards": [],
-                },
-                "workExperience": [],
-                "education": [],
-                "projects": [],
-                "academicAchievements": [],
-            },
-            "retrieval": {
-                "queryText": "",
-                "appliedFilters": {
-                    "category": None,
-                    "interviewType": None,
-                    "company": None,
-                },
-                "items": [],
-            },
-            "interviewPlan": {
-                "plan": [
-                    {"round": 1, "topic": "开场介绍", "description": "自我介绍"},
-                    {"round": 2, "topic": "项目经历", "description": "介绍项目"},
-                    {"round": 3, "topic": "算法题", "description": "编码考察"},
-                ],
-                "total_rounds": 3,
-                "estimated_duration": "20 分钟",
-                "leetcode_problem": "两数之和",
-            },
-            "interviewState": {
-                "currentRound": 3,
-                "questionsPerRound": {"1": 1, "2": 1, "3": 1},
-                "assistantQuestionCount": 3,
-                "turnCount": 3,
-                "reflectionHistory": [],
-                "closed": True,
-            },
-            "messages": [
-                {"id": "assistant-1", "role": "assistant", "content": "请先自我介绍"},
-                {"id": "user-1", "role": "user", "content": "我做过大模型训练项目"},
-            ],
-            "developerContext": None,
-            "developerTrace": [],
-            "resumeFingerprint": "fp-uploaded",
-            "createdAt": "2026-03-19T10:00:00Z",
-            "lastActiveAt": "2026-03-19T10:10:00Z",
-            "expiresAt": "2026-03-20T10:00:00Z",
-        },
+        json=payload,
     )
 
     assert response.status_code == 409
@@ -442,3 +335,46 @@ def test_optimize_interview_review_topic_route_returns_result():
 
     assert response.status_code == 200
     assert response.json()["topicId"] == "topic-1"
+
+
+def test_generate_interview_review_route_logs_request_without_sensitive_payload(caplog):
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        response = client.post(
+            "/api/interview-reviews/session-1/generate",
+            json=_build_route_snapshot_payload(),
+        )
+
+    assert response.status_code == 200
+    records = [record for record in caplog.records if record.name == LOGGER_NAME]
+    assert any(record.message == "interview review generate request" for record in records)
+    assert any(record.message == "interview review generate completed" for record in records)
+    request_record = next(record for record in records if record.message == "interview review generate request")
+    assert getattr(request_record, "session_id") == "session-1"
+    assert getattr(request_record, "has_snapshot") is True
+    assert getattr(request_record, "message_count") == 2
+    assert getattr(request_record, "has_runtime_override") is False
+    log_text = caplog.text
+    assert "负责大模型算法研发" not in log_text
+    assert "我做过大模型训练项目" not in log_text
+    assert "test@example.com" not in log_text
+
+
+def test_optimize_interview_review_topic_route_logs_expected_rejection(caplog):
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        response = client.post(
+            "/api/interview-reviews/session-conflict/topics/topic-1/optimize",
+            json={
+                "sessionId": "session-conflict",
+                "topicId": "topic-1",
+                "message": "how to improve",
+                "conversation": [],
+            },
+        )
+
+    assert response.status_code == 409
+    records = [record for record in caplog.records if record.name == LOGGER_NAME]
+    rejected = next(record for record in records if record.message == "interview review optimize rejected")
+    assert getattr(rejected, "session_id") == "session-conflict"
+    assert getattr(rejected, "topic_id") == "topic-1"
+    assert getattr(rejected, "conversation_length") == 0
+    assert getattr(rejected, "elapsed_ms") >= 0

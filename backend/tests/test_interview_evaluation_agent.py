@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
+
 from app.schemas.interview_evaluation import (
     EvaluationTopicAssessment,
     InterviewEvaluationAgentInput,
     InterviewEvaluationSummary,
 )
 from app.services.interview_evaluation_agent import InterviewEvaluationAgent
+
+
+LOGGER_NAME = "app.services.interview_evaluation_agent"
 
 
 class FailingLLM:
@@ -183,3 +188,91 @@ def test_evaluate_uses_topic_then_summary_calls():
     assert report.summary == "整体表现稳定。"
     assert agent.topic_evaluation_llm.calls == 3
     assert agent.summary_evaluation_llm.calls == 1
+
+
+def test_evaluate_logs_stages_without_sensitive_content(caplog):
+    payload = build_payload()
+    agent = InterviewEvaluationAgent.__new__(InterviewEvaluationAgent)
+    agent.topic_evaluation_llm = SequenceLLM(
+        [
+            EvaluationTopicAssessment.model_validate(
+                {
+                    "topic": "开场介绍",
+                    "question": "请先自我介绍",
+                    "assessmentFocus": ["考察候选人是否能清晰介绍自身背景"],
+                    "answerHighlights": ["我做过大模型训练项目"],
+                    "strengths": ["结构清楚"],
+                    "weaknesses": ["量化不足"],
+                    "followUps": ["补充结果"],
+                    "suggestedAnswer": "先讲背景再讲结果",
+                    "rubricScores": [{"name": "structured_thinking", "score": 80, "reason": "结构清楚"}],
+                    "overallScore": 80,
+                }
+            ),
+            EvaluationTopicAssessment.model_validate(
+                {
+                    "topic": "项目经历",
+                    "question": "介绍一个项目",
+                    "assessmentFocus": ["考察候选人是否能说明项目结果和关键取舍"],
+                    "answerHighlights": ["我负责模型训练和评估"],
+                    "strengths": ["主线清楚"],
+                    "weaknesses": ["细节不足"],
+                    "followUps": ["补充指标"],
+                    "suggestedAnswer": "补充量化指标",
+                    "rubricScores": [{"name": "communication", "score": 78, "reason": "表达完整"}],
+                    "overallScore": 78,
+                }
+            ),
+            EvaluationTopicAssessment.model_validate(
+                {
+                    "topic": "LeetCode 编码",
+                    "question": "请写一道算法题",
+                    "assessmentFocus": ["考察候选人是否有结构化拆解算法问题的能力"],
+                    "answerHighlights": ["我会先分析复杂度再编码"],
+                    "strengths": ["有框架"],
+                    "weaknesses": ["实现细节不足"],
+                    "followUps": ["补充边界处理"],
+                    "suggestedAnswer": "先讲复杂度再写代码",
+                    "rubricScores": [{"name": "domain_judgment", "score": 76, "reason": "先分析复杂度"}],
+                    "overallScore": 76,
+                }
+            ),
+        ]
+    )
+    agent.summary_evaluation_llm = SequenceLLM(
+        [
+            InterviewEvaluationSummary.model_validate(
+                {
+                    "summary": "整体表现稳定。",
+                    "overallScore": 78,
+                    "recommendation": "优先补量化结果。",
+                    "strengths": ["结构较清楚"],
+                    "risks": ["量化不足"],
+                    "priorityActions": ["补结果指标"],
+                }
+            )
+        ]
+    )
+    agent._build_topic_messages = lambda _payload: []
+    agent._build_summary_messages = lambda _payload: []
+
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        report = InterviewEvaluationAgent.evaluate(agent, payload)
+
+    assert report.summary == "整体表现稳定。"
+    records = [record for record in caplog.records if record.name == LOGGER_NAME]
+    assert any(record.message == "interview evaluation started" for record in records)
+    assert any(record.message == "interview evaluation built topic inputs" for record in records)
+    assert any(record.message == "interview topic evaluation started" for record in records)
+    assert any(record.message == "interview topic evaluation completed" for record in records)
+    assert any(record.message == "interview summary evaluation started" for record in records)
+    assert any(record.message == "interview summary evaluation completed" for record in records)
+    summary_record = next(record for record in records if record.message == "interview evaluation built summary")
+    assert getattr(summary_record, "session_id") == "session-1"
+    assert getattr(summary_record, "topic_assessment_count") == 3
+    assert getattr(summary_record, "overall_score") == 78
+    assert getattr(summary_record, "elapsed_ms") >= 0
+    log_text = caplog.text
+    assert "负责大模型算法研究" not in log_text
+    assert "我做过大模型训练项目" not in log_text
+    assert "test@example.com" not in log_text

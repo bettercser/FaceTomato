@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from functools import lru_cache
 
 from langchain.chat_models import init_chat_model
@@ -123,8 +124,26 @@ class InterviewEvaluationAgent:
     def evaluate(
         self, payload: InterviewEvaluationAgentInput
     ) -> InterviewEvaluationReport:
+        start = time.perf_counter()
+        logger.info(
+            "interview evaluation started",
+            extra={
+                "session_id": payload.sessionId,
+                "round_number": payload.interviewState.currentRound,
+                "message_count": len(payload.messages),
+            },
+        )
         try:
             topic_inputs = self._build_topic_inputs(payload)
+            logger.info(
+                "interview evaluation built topic inputs",
+                extra={
+                    "session_id": payload.sessionId,
+                    "round_number": payload.interviewState.currentRound,
+                    "message_count": len(payload.messages),
+                    "topic_input_count": len(topic_inputs),
+                },
+            )
             topic_assessments = [
                 self._evaluate_topic(topic_input) for topic_input in topic_inputs
             ]
@@ -136,6 +155,15 @@ class InterviewEvaluationAgent:
                 topicAssessments=topic_assessments,
             )
             summary = self._evaluate_summary(summary_input)
+            logger.info(
+                "interview evaluation built summary",
+                extra={
+                    "session_id": payload.sessionId,
+                    "topic_assessment_count": len(topic_assessments),
+                    "overall_score": summary.overallScore,
+                    "elapsed_ms": round((time.perf_counter() - start) * 1000),
+                },
+            )
             return InterviewEvaluationReport(
                 summary=summary.summary,
                 overallScore=summary.overallScore,
@@ -149,6 +177,12 @@ class InterviewEvaluationAgent:
             logger.exception(
                 "Interview evaluation failed for session %s, using fallback report",
                 payload.sessionId,
+                extra={
+                    "session_id": payload.sessionId,
+                    "round_number": payload.interviewState.currentRound,
+                    "message_count": len(payload.messages),
+                    "elapsed_ms": round((time.perf_counter() - start) * 1000),
+                },
             )
             return self._build_fallback_report(payload)
 
@@ -200,6 +234,16 @@ class InterviewEvaluationAgent:
     def _evaluate_topic(
         self, payload: InterviewTopicEvaluationInput
     ) -> EvaluationTopicAssessment:
+        start = time.perf_counter()
+        logger.info(
+            "interview topic evaluation started",
+            extra={
+                "session_id": payload.sessionId,
+                "round_number": payload.roundNumber,
+                "topic": payload.topic,
+                "message_count": len(payload.transcript),
+            },
+        )
         messages = self._build_topic_messages(payload)
         try:
             result = invoke_with_fallback(
@@ -207,18 +251,45 @@ class InterviewEvaluationAgent:
                 messages,
                 EvaluationTopicAssessment,
             )
-            return result or self._build_fallback_topic_assessment(payload)
+            assessment = result or self._build_fallback_topic_assessment(payload)
+            logger.info(
+                "interview topic evaluation completed",
+                extra={
+                    "session_id": payload.sessionId,
+                    "round_number": payload.roundNumber,
+                    "topic": assessment.topic,
+                    "message_count": len(payload.transcript),
+                    "overall_score": assessment.overallScore,
+                    "elapsed_ms": round((time.perf_counter() - start) * 1000),
+                },
+            )
+            return assessment
         except Exception:
             logger.exception(
                 "Topic evaluation failed for session %s round %s, using fallback topic assessment",
                 payload.sessionId,
                 payload.roundNumber,
+                extra={
+                    "session_id": payload.sessionId,
+                    "round_number": payload.roundNumber,
+                    "topic": payload.topic,
+                    "transcript_message_count": len(payload.transcript),
+                    "elapsed_ms": round((time.perf_counter() - start) * 1000),
+                },
             )
             return self._build_fallback_topic_assessment(payload)
 
     def _evaluate_summary(
         self, payload: InterviewSummaryEvaluationInput
     ) -> InterviewEvaluationSummary:
+        start = time.perf_counter()
+        logger.info(
+            "interview summary evaluation started",
+            extra={
+                "session_id": payload.sessionId,
+                "topic_assessment_count": len(payload.topicAssessments),
+            },
+        )
         messages = self._build_summary_messages(payload)
         try:
             result = invoke_with_fallback(
@@ -226,11 +297,26 @@ class InterviewEvaluationAgent:
                 messages,
                 InterviewEvaluationSummary,
             )
-            return result or self._build_fallback_summary(payload)
+            summary = result or self._build_fallback_summary(payload)
+            logger.info(
+                "interview summary evaluation completed",
+                extra={
+                    "session_id": payload.sessionId,
+                    "topic_assessment_count": len(payload.topicAssessments),
+                    "overall_score": summary.overallScore,
+                    "elapsed_ms": round((time.perf_counter() - start) * 1000),
+                },
+            )
+            return summary
         except Exception:
             logger.exception(
                 "Summary evaluation failed for session %s, using fallback summary",
                 payload.sessionId,
+                extra={
+                    "session_id": payload.sessionId,
+                    "topic_assessment_count": len(payload.topicAssessments),
+                    "elapsed_ms": round((time.perf_counter() - start) * 1000),
+                },
             )
             return self._build_fallback_summary(payload)
 
