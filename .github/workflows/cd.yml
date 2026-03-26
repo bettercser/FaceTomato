@@ -2,14 +2,11 @@ name: CD
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
-    name: Deploy to production server
     runs-on: ubuntu-latest
-
     steps:
       - name: Run remote deploy script
         uses: appleboy/ssh-action@v1.0.3
@@ -18,4 +15,9 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            bash /home/deploy/scripts/deploy-facetomato-prod.sh
+            bash -lc '
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+              nvm use 24.14.0
+              bash /home/deploy/scripts/deploy-facetomato-prod.sh
+            '
